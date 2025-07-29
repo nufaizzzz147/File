@@ -18,7 +18,7 @@ int main() {
     printf("Running GSM engine cycles to demonstrate state transitions:\n");
     
     // Run the GSM engine for several cycles to demonstrate the state machine
-    for(int i = 0; i < 200; i++) {
+    for(int i = 0; i < 300; i++) {
         gsm_engine();
         
         // Print state changes
@@ -36,9 +36,14 @@ int main() {
             last_state = gsm_device_state;
         }
         
-        // Break if we've completed the restart sequence
-        if(gsm_device_state == 0 && gsm_reset_count == 0) { // GSM_ON state reached
-            printf("GSM engine has transitioned to GSM_ON state after restart sequence\n");
+        // Show progress for GSM_ON state counting
+        if(gsm_device_state == 0 && gsm_reset_count > 0 && gsm_reset_count % 50 == 0) {
+            printf("  GSM_ON state: reset_count=%d (waiting for 150)\n", gsm_reset_count);
+        }
+        
+        // Break if we've completed both sequences
+        if(gsm_device_state == 2 && gsm_reset_count == 0) { // GSM_INIT state reached
+            printf("GSM engine has transitioned to GSM_INIT state after GSM_ON sequence\n");
             break;
         }
     }
