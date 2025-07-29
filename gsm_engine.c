@@ -205,16 +205,20 @@ uint8_t gps_data[150];
 
 uint8_t *gsm_data_json = (uint8_t*)"{\"DVID\":\"XXXXXXXXXXXXXXX\"}";
 
+// Updated AT Commands based on user specification
 unsigned char Command1[]       = "AT\r\0";
 unsigned char Command2[]       = "ATE0\r\0";
-unsigned char Command3[]       = "ATI\r\0";
-unsigned char Command4[]       = "AT+CREG=1\r\0";
-unsigned char Command5[]       = "AT+CREG?\r\0";
-unsigned char Command6[]       = "AT+CSQ\r\0";
-unsigned char Command7[]       = "AT+COPS?\r\0";
-unsigned char Command8[140]    = "AT+CSTT=\"letstrackgprs\"\r\0"; //airtelgprs.com	   //letstrackgprs
-unsigned char Command8a[140]   = "AT+QICSGP=1,\"airtelgprs.com\"\r\0";
-unsigned char Command9[]       = "AT+GSN\r\0";
+unsigned char Command3[]       = "AT+CGMR\r\0";           // Changed from ATI - get manufacturer revision
+unsigned char Command4[]       = "AT+CFUN=1\r\0";         // Changed from AT+CREG=1 - enable full functionality
+unsigned char Command5[]       = "AT+CSQ\r\0";            // Changed from AT+CREG? - check signal quality
+unsigned char Command6[]       = "AT+CREG=1\r\0";         // Moved from Command4 - network registration
+unsigned char Command7[]       = "AT+COPS?\r\0";          // Same - check network operator
+unsigned char Command8[]       = "AT+COPS=4,2,\"40445\",7\r\0"; // Enhanced - set network operator with auto fallback
+unsigned char Command9[]       = "AT+CGSN=2\r\0";         // Enhanced from AT+GSN - get IMEISV
+unsigned char Command10[]      = "AT+CGCMOD=?\r\0";       // New - check CID associated with active context
+unsigned char Command11[]      = "AT+CGATT=1\r\0";        // New - attach to packet domain service
+unsigned char Command12[]      = "AT+CGACT=1,1\r\0";      // New - activate PDP context
+unsigned char Command13[]      = "AT+CGDCONT=1,\"IP\",\"airtel\"\r\0"; // New - set APN for data connection
 
 
 unsigned char Commandtim1[]	   = "AT+CCLK?\r\0";
@@ -563,105 +567,85 @@ void gsm_init_engine(void)
 	uint8_t i=0,j=0;
 	switch(gsm_init_state)
 	 {
-	   case GSM_CMD1    :
+	   case GSM_CMD1    :    // AT - Basic connectivity test
 		   	   	   	   	   engine_tim_limit = ENGINE_TIM_MAX;
 		   	   	   	   	   gsm_send_command(Command1);
 	   	   	   	   	   	   gsm_response_process(RESP_OK);
 	                       break;
 
-	   case GSM_CMD2    :
+	   case GSM_CMD2    :    // ATE0 - Disable echo
 		                   engine_tim_limit = ENGINE_TIM_MAX;
 	   	                   gsm_send_command(Command2);
 	                       gsm_response_process(RESP_OK);
 	   	   	   	   	   	   break;
-	   case GSM_CMD3    :  modem_type_get=1;
+
+	   case GSM_CMD3    :    // AT+CGMR - Get manufacturer revision
+		   	   	   	   	   modem_type_get=1;
 		                   engine_tim_limit = ENGINE_TIM_MAX;
 	   	                   gsm_send_command(Command3);
 	                       gsm_response_process(RESP_OK);
 	   	   	   	   	   	   break;
-	   case GSM_CMD4	:  modem_type_get=0;
-		   	   	   	   	   if(time_get_set_flag == 1)
-		   	   	   	   	   {
-		   	   	   	   		   engine_tim_limit = ENGINE_TIM_MAX;
+
+	   case GSM_CMD4	:    // AT+CFUN=1 - Enable full functionality
+		   	   	   	   	   engine_tim_limit = ENGINE_TIM_MAX;
 		    		   	   	   gsm_send_command(Command4);
 		    		   	   	   gsm_response_process(RESP_OK);
-		   	   	   	   	   }
-		   	   	   	   	   else
-		   	   	   	   	   {
-		   	   	   	   		   gsm_init_state=gsm_init_state+1;
-		   	   	   	   	   }
-
 		   	   	   	   	   break;
-	   case GSM_CMD5    :
-		   	   	   	   	   engine_tim_limit = ENGINE_TIM_MIN;
+
+	   case GSM_CMD5    :    // AT+CSQ - Check signal quality
+		   	   	   	   	   engine_tim_limit = ENGINE_TIM_MAX;
 	   	   	   	   	   	   gsm_send_command(Command5);
 	   		   	   	   	   gsm_response_process(RESP_OK);
 	                       break;
-	   case GSM_CMD6    :
+
+	   case GSM_CMD6    :    // AT+CREG=1 - Enable network registration status
 		   	   	   	   	   engine_tim_limit = ENGINE_TIM_MAX;
 		   		   	   	   gsm_send_command(Command6);
 	   	   	   	   	   	   gsm_response_process(RESP_OK);
 	                       break;
 
-	   case GSM_CMD7    :  engine_tim_limit = ENGINE_TIM_MAX;
+	   case GSM_CMD7    :    // AT+COPS? - Query current network operator
+		   	   	   	   	   engine_tim_limit = ENGINE_TIM_MAX;
 		   	   	   	   	   gsm_send_command(Command7);
 	                       gsm_response_process(RESP_OK);
 	                       break;
 
-	   case GSM_CMD8    :
+	   case GSM_CMD8    :    // AT+COPS=4,2,"40445",7 - Set network operator with auto fallback
 		   	   	   	   	   engine_tim_limit = ENGINE_TIM_MAX;
-		   	   	   	   	   if(modem_type == LYNQ_MODEM)
-		   	   	   	   	   {
-		   	   	   	   		   gsm_send_command(Command8);
-		   	   	   	   		   j=20;
-		   	   	   	   		   for(i=9;Command8[i] != '"';i++)
-		   	   	   	   		   {
-		   	   	   	   			   	  Commandfwvr1[j]=Command8[i];
-		   	   	   	   			   	  j++;
-		   	   	   	   		   }
-		   	   	   	   		   Commandfwvr1[j]='"';
-		   	   	   	   		   Commandfwvr1[j+1]='\r';
-		   	   	   	   		   Commandfwvr1[j+2]='\0';
-
-		   	   	   	   	   }
-		   	   	   	   	   else
-		   	   	   	   	   {
-		   	   	   	           gsm_send_command(Command8a);
-		   	   	   	   	   }
-
+		   	   	   	   	   gsm_send_command(Command8);
 	                       gsm_response_process(RESP_OK);
-
 	                       break;
 
-	   case GSM_CMD9    : imei_flag = 1;
-		                  gsm_send_command(Command9);
-		   	              gsm_response_process(RESP_OK);
-
+	   case GSM_CMD9    :    // AT+CGSN=2 - Get IMEISV
+		   	   	   	   	   imei_flag = 1;
+		                   gsm_send_command(Command9);
+		   	               gsm_response_process(RESP_OK);
 	                       break;
 
-	   case GSM_CMD10	:  imei_flag=0;
-		           	   	   engine_tim_limit = ENGINE_TIM_MIN;
-		           	   	   if(modem_type == LYNQ_MODEM)
-		           	   	   {
-		           	   		  //gsm_init_state=gsm_init_state+1;
-			           	   	 gsm_send_command(gps_command1);
-		           	   	   }
-		           	   	   else
-		           	   	   {
-		           	   		  gsm_send_command(q_gps_command1);
-		           	   	   }
+	   case GSM_CMD10	:    // AT+CGCMOD=? - Check CID associated with active context
+		           	   	   engine_tim_limit = ENGINE_TIM_MAX;
+		           	   	   gsm_send_command(Command10);
 		           	   	   gsm_response_process(RESP_OK);
 		   	   	   	   	   break;
 
+	   case GSM_CMD11	:    // AT+CGATT=1 - Attach to packet domain service
+		           	   	   engine_tim_limit = ENGINE_TIM_MAX;
+		           	   	   gsm_send_command(Command11);
+		           	   	   gsm_response_process(RESP_OK);
+		           	   	   break;
 
-	   case GSM_CMD11	:   engine_tim_limit = ENGINE_TIM_MAX;
-	   	   	   	   	   	   	//gsm_init_state=gsm_init_state+1;
-		           	   	    gsm_send_command(tx_sms_command2);
-		           	   	    gsm_response_process(RESP_OK);
-		           	   	    break;
+	   case GSM_CMD12    :   // AT+CGACT=1,1 - Activate PDP context for CID 1
+		   	   	   	   	   engine_tim_limit = ENGINE_TIM_MAX;
+		   	   	   	   	   gsm_send_command(Command12);
+		           	   	   gsm_response_process(RESP_OK);
+	                       break;
 
-	   case GSM_CMD12    :engine_tim_limit = ENGINE_TIM_MAX;
-		   	   	   	   	   if(time_get_set_flag == 1)
+	   case GSM_CMD13    :   // AT+CGDCONT=1,"IP","airtel" - Set APN for data connection
+		   	   	   	   	   engine_tim_limit = ENGINE_TIM_MAX;
+		   	   	   	   	   gsm_send_command(Command13);
+		           	   	   gsm_response_process(RESP_OK);
+		           	   	   // Initialization complete, move to next phase
+		           	   	   if(time_get_set_flag == 1)
 	   	   	   	   	   	   {
 		   	   	   	   	   	    time_get_set_flag=0;
 		   	   	   	   	   	   	gsm_device_state    = GSM_GET_TIME;
@@ -669,17 +653,16 @@ void gsm_init_engine(void)
 	   	   	   	   	   	   }
 	   	   	   	   	   	   else
 	   	   	   	   	   	   {
-
-	   	   	   	   	   		   gsm_device_state    = GSM_IDLE; //GSM_FWVR_UP; //  GSM_TX_SMS;  //
+	   	   	   	   	   		   gsm_device_state    = GSM_IDLE;
 	   	   	   	   	   		   gsm_init_state=GSM_CMD1;
 	   	   	   	   	   	   }
 		   	   	   	   	   cloud_comm_start=1;
 	                       break;
 
-	   default           : gsm_device_state = GSM_RESTART;
+	   default           :   gsm_device_state = GSM_RESTART;
 	                       gsm_reset_count  = 0;
 	                       break;
-	}
+	 }
 }
 
 
@@ -1812,26 +1795,47 @@ void gsm_receive_process(void)
     		      			 modem_type_get=0;
     	   }
 
-       }
-       else if(imei_flag == 1)
-       {
-    	   if ((gsm_serialRXBuff[i] == 'K') && (gsm_serialRXBuff[i-1] == 'O'))
-    	   {
-    		   k=i-20;
-    		   for(j=0;j<15;j++)
-    		   {
-
-    			   imei_num_bytes[j]=gsm_serialRXBuff[k];
-    			   k++;
-    		   }
-    			   imei_num_conv(imei_num_bytes);
-    			   imei_flag =0;
-    			   gsm_response_flag = 1;
-    			   i                 = tmp_gsm_RxBuffWRPtr + 1;
-
-    	   }
-
-       }
+             }
+      else if(imei_flag == 1)
+      {
+          // Process AT+CGSN=2 response: '+CGSN: "3521869700469801"'
+          if(strstr((char*)gsm_serialRXBuff, "+CGSN:") != NULL)
+          {
+              char *imei_start = strchr((char*)gsm_serialRXBuff, '"');
+              if(imei_start != NULL)
+              {
+                  imei_start++;  // Move past the opening quote
+                  char *imei_end = strchr(imei_start, '"');
+                  if(imei_end != NULL)
+                  {
+                      int imei_len = imei_end - imei_start;
+                      if(imei_len < 16)  // IMEI is typically 15 digits
+                      {
+                          strncpy((char*)imei_num_bytes, imei_start, imei_len);
+                          imei_num_bytes[imei_len] = '\0';
+                          imei_num_conv(imei_num_bytes);
+                          imei_flag = 0;
+                          gsm_response_flag = 1;
+                          i = tmp_gsm_RxBuffWRPtr + 1;
+                      }
+                  }
+              }
+          }
+          // Fallback for old format (backward compatibility)
+          else if ((gsm_serialRXBuff[i] == 'K') && (gsm_serialRXBuff[i-1] == 'O'))
+          {
+              k=i-20;
+              for(j=0;j<15;j++)
+              {
+                  imei_num_bytes[j]=gsm_serialRXBuff[k];
+                  k++;
+              }
+              imei_num_conv(imei_num_bytes);
+              imei_flag =0;
+              gsm_response_flag = 1;
+              i = tmp_gsm_RxBuffWRPtr + 1;
+          }
+      }
 
 	   else			                         //for all the rest AT and Http commands with 'OK' response and '>>'
 		{
